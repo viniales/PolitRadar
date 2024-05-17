@@ -1,9 +1,12 @@
+import nltk
 import praw
 import os
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.ml.feature import Tokenizer
 from pyspark.ml.feature import StopWordsRemover
+from nltk.sentiment import SentimentIntensityAnalyzer
+from pyspark.sql.types import FloatType
 
 client_id = os.environ.get('client_id')
 client_secret = os.environ.get('client_secret')
@@ -30,5 +33,17 @@ spark_posts = tokenizer.transform(spark_posts)
 
 remover = StopWordsRemover(inputCol="tokens", outputCol="filtered_tokens")
 spark_posts = remover.transform(spark_posts)
+
+nltk.download('vader_lexicon')
+sia = SentimentIntensityAnalyzer()
+
+
+def analyze_sentiment(text):
+    sentiment = sia.polarity_scores(text)
+    return sentiment['compound']
+
+
+sentiment_udf = udf(analyze_sentiment(), FloatType())
+spark_posts = spark_posts.withColumn('sentiment', sentiment_udf('filtered_tokens'))
 
 spark_posts.show()
