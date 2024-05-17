@@ -28,12 +28,6 @@ spark_posts = spark.createDataFrame([(post.title, post.selftext) for post in pos
 spark_posts = spark_posts.withColumn('text', concat(col('title'), lit(' '), col('text')))
 spark_posts = spark_posts.withColumn('clear_text', lower(regexp_replace(col('text'), '[^a-zA-Z\\s]', '')))
 
-tokenizer = Tokenizer(inputCol='clear_text', outputCol='tokens')
-spark_posts = tokenizer.transform(spark_posts)
-
-remover = StopWordsRemover(inputCol="tokens", outputCol="filtered_tokens")
-spark_posts = remover.transform(spark_posts)
-
 nltk.download('vader_lexicon')
 sia = SentimentIntensityAnalyzer()
 
@@ -42,8 +36,11 @@ def analyze_sentiment(text):
     sentiment = sia.polarity_scores(text)
     return sentiment['compound']
 
+sentiment_udf = udf(analyze_sentiment, FloatType())
+spark_posts = spark_posts.withColumn("sentiment", sentiment_udf("clear_text"))
 
-sentiment_udf = udf(analyze_sentiment(), FloatType())
-spark_posts = spark_posts.withColumn('sentiment', sentiment_udf('filtered_tokens'))
+# Wyświetlenie wyników analizy sentymentu
+spark_posts.select("clear_text", "sentiment").show()
 
-spark_posts.show()
+# Zakończenie sesji Sparkclear
+spark.stop()
